@@ -1,0 +1,24 @@
+services:
+  db:
+    build: 
+      context: ./infra/postgres # Tells Docker to use your custom pgvector Dockerfile
+    container_name: askpdf-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-askpdf}
+    ports:
+      - "5432:5432"
+    volumes:
+      # CRITICAL: This ensures your data stays alive even if the container stops
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d askpdf"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  default:
+    name: askpdf-network

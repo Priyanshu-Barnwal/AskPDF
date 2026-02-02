@@ -1,1 +1,3 @@
-// Contains the schema for the document processing job
+{
+    "comment": "Contains the schema for the document processing job"
+}

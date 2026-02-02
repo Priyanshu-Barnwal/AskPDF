@@ -1,0 +1,23 @@
+{
+  "name": "askpdf",
+  "version": "1.0.0",
+  "description": "AskPDF is a document-centric RAG (Retrieval-Augmented Generation) application that allows users to upload PDFs and interact with them through a conversational interface. Users can ask natural language questions about the content of their documents, and the system generates grounded answers by retrieving relevant sections from the uploaded PDFs and using a large language model to synthesize responses.",
+  "homepage": "https://github.com/Priyanshu-Barnwal/AskPDF#readme",
+  "bugs": {
+    "url": "https://github.com/Priyanshu-Barnwal/AskPDF/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Priyanshu-Barnwal/AskPDF.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "infra:up": "docker-compose up -d",
+    "infra:down": "docker-compose down",
+    "dev": "docker-compose up -d && npm run dev --workspace=@askpdf/web"
+  }
+}

@@ -1,1 +1,3 @@
-// Contains the schema for the embeddings job
+{
+    "comment": "Contains the schema for the embeddings job"
+}
