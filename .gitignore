@@ -1,2 +1,4 @@
 .env
 /packages/db/node_modules
+/data
+/node_modules
