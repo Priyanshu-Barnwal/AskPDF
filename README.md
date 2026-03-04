@@ -13,11 +13,11 @@ The system is designed to prioritize correctness, debuggability, and scalability
 - Python for async ingestion and embeddings
 
 **Storage**
-- Object Storage: AWS S3 or Firebase Storage (PDF files)
+- Object Storage: AWS S3 (PDF files)
 - Relational Database: PostgreSQL (users, documents, chunks, chats)
 
 **Async Processing**
-- Message Queues: AWS SQS / BullMQ (Redis)
+- Message Queues: Amazon SQS
 - Separate workers for document processing and embedding generation
 
 **LLM & Embeddings**:
