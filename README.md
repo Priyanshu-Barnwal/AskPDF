@@ -17,7 +17,7 @@ The system is designed to prioritize correctness, debuggability, and scalability
 - Relational Database: PostgreSQL (users, documents, chunks, chats)
 
 **Async Processing**
-- Message Queues: Amazon SQS
+- Message Queues: RabbitMQ
 - Separate workers for document processing and embedding generation
 
 **LLM & Embeddings**:
