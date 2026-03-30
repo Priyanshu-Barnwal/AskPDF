@@ -1,8 +1,10 @@
-import { pgTable, text, uuid, timestamp, integer, customType } from 'drizzle-orm/pg-core';
+import { pgTable, text, uuid, timestamp, integer, customType, pgEnum } from 'drizzle-orm/pg-core';
 
 const vector = customType<{ data: number[] }>({
     dataType() { return 'vector(3072)'; }, // Matches text-embedding-3-large
 });
+
+export const documentStatusEnum = pgEnum('document_status', ['pending', 'processing', 'ready', 'failed']);
 
 export const documents = pgTable('documents', {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -10,9 +12,10 @@ export const documents = pgTable('documents', {
     fileName: text('file_name').notNull(),
     s3Key: text('s3_key').notNull(),
     fileSize: integer('file_size'),
-    status: text('status').default('pending'), // pending, processing, ready, failed
+    status: documentStatusEnum('status').default('pending'),
     createdAt: timestamp('created_at').defaultNow(),
 });
+
 
 export const documentChunks = pgTable('document_chunks', {
     id: uuid('id').primaryKey().defaultRandom(),
