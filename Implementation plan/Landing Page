@@ -1,0 +1,100 @@
+# AskPDF Landing Page — Dark Glassmorphism UI
+
+Build a premium dark-mode glassmorphism landing page for AskPDF using the `custom-vibe` skill, adapting the DeFi template recipe to the PDF-AI product context.
+
+## Project Structure Findings
+
+```
+app/web/
+├── app/
+│   ├── globals.css        ← OVERWRITE (v4 Tailwind syntax, needs v3 skill format)
+│   ├── layout.tsx         ← MODIFY (swap Geist → Inter, update metadata)
+│   ├── page.tsx           ← OVERWRITE (assemble Navbar + Hero + BrandStrip)
+│   └── api/...
+├── postcss.config.mjs     ← KEEP (uses @tailwindcss/postcss — correct for v4)
+├── next.config.ts         ← KEEP as-is
+└── package.json           ← Tailwind v4 + @tailwindcss/postcss already installed
+```
+
+> [!IMPORTANT]
+> **Tailwind v4 detected.** The project uses `tailwindcss@^4` + `@tailwindcss/postcss`. Tailwind v4 does **not** use a `tailwind.config.ts` file — tokens are defined directly in CSS using `@theme`. The skill's Section 2 (`tailwind.config.ts`) is v3 syntax and requires adaptation.
+>
+> The plan below translates all skill tokens to v4 `@theme {}` blocks inside `globals.css`.
+
+> [!NOTE]
+> shadcn/ui is **not** installed. The skill's Navbar and Hero use `<Button>` from `@/components/ui/button`. Rather than running the full shadcn init (which involves interactive prompts), we will create a minimal `Button` shim component inline, then install shadcn properly as a follow-up step.
+
+---
+
+## Proposed Changes
+
+### Tailwind Design Tokens
+
+#### [MODIFY] [globals.css](file:///c:/Users/ROG%20Zephyrus/dev/AskPDF/app/web/app/globals.css)
+
+Replace the current v4 globals with:
+- Google Font import for Inter
+- `@theme {}` block with all design tokens from the skill (background, glow colours, border colours, typography, animations)
+- `@layer base` rules for body and scrollbar
+
+---
+
+### Layout & Metadata
+
+#### [MODIFY] [layout.tsx](file:///c:/Users/ROG%20Zephyrus/dev/AskPDF/app/web/app/layout.tsx)
+
+- Remove Geist font imports (no longer needed; Inter is loaded via CSS `@import`)
+- Update `<html>` to include `class="dark"` (skill uses `darkMode: "class"`)
+- Update metadata: title → `"AskPDF — Chat with your PDFs"`, description → proper product copy
+
+---
+
+### Components (new files)
+
+#### [NEW] `app/web/components/GlowCanvas.tsx`
+Verbatim from skill §4.1 — ambient radial gradient blobs.
+
+#### [NEW] `app/web/components/Navbar.tsx`
+Adapted from skill §4.2:
+- Logo: "📄" icon with AskPDF wordmark instead of "⊙"
+- Nav links: `["Home", "Features", "How it Works", "Pricing", "FAQ"]`
+- CTA button: `"Get Started Free"` → links to `/upload`
+- No shadcn Button dependency (use plain `<button>` styled directly)
+
+#### [NEW] `app/web/components/Hero.tsx`
+Adapted from skill §4.3:
+- Badge: `"Now in Beta — Try AskPDF Free →"`
+- Headline: `"Upload a PDF. Ask anything."` with gradient on `"Ask anything."`
+- Subtitle: `"AskPDF parses, chunks, and embeds your documents so you can chat with them using natural language."`
+- CTA buttons: `"Upload a Document ↗"` (ghost) + `"See How It Works"` (solid white)
+- Floating stat pins (right side): `"Documents Processed" / "1,204"`, `"Avg Response Time" / "1.2s"`
+- Left: `"Accuracy Rate" / "94.7%"`, `"Active Users" / "3,800+"`
+- Remove DeFi labels (scroll indicator stays)
+- No shadcn Button dependency
+
+#### [NEW] `app/web/components/BrandStrip.tsx`
+Adapted from skill §4.4:
+- Label: `"Powered by"` header above strip
+- Brands replaced with tech stack logos as text: `"▲ Next.js"`, `"🐍 Python"`, `"🗄 PostgreSQL"`, `"🧠 OpenAI"`, `"☁ AWS S3"`, `"🔷 pgvector"`, `"⚡ Drizzle ORM"`
+
+---
+
+### Page Assembly
+
+#### [MODIFY] [page.tsx](file:///c:/Users/ROG%20Zephyrus/dev/AskPDF/app/web/app/page.tsx)
+Assemble `<Navbar>`, `<Hero>`, `<BrandStrip>` per skill §6.
+
+---
+
+## Verification Plan
+
+### Automated
+- Run `npm run dev` in `app/web/`
+- Launch browser subagent to screenshot the running page at `localhost:3000`
+
+### Visual Checks
+- Background is `#080808` (near-black, not pure black)
+- Glow blobs visible top-right (sage green) and bottom-left (warm grey)
+- Navbar is pill-shaped, frosted glass, fixed to top
+- Hero text fade-up animation plays on load
+- BrandStrip appears below hero with muted tech-stack labels

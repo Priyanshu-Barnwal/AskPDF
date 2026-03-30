@@ -1,8 +1,8 @@
 // app/web/app/api/documents/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { db } from '../../../../packages/db/src/client';
-import { documents } from '../../../../packages/db/src/schema';
+import { db } from '../../../../packages/db/src/client.ts';
+import { documents } from '../../../../packages/db/src/schema.ts';
 import { randomUUID } from 'crypto';
 
 const s3 = new S3Client({
