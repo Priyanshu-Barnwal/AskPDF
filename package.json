@@ -14,11 +14,15 @@
   "author": "",
   "type": "commonjs",
   "main": "index.js",
+  "workspaces": [
+    "app/*",
+    "packages/*"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "infra:up": "docker-compose up -d",
     "infra:down": "docker-compose down",
-    "dev": "docker-compose up -d && npm run dev --workspace=@askpdf/web"
+    "dev": "npm run dev --workspace=@askpdf/web"
   },
   "dependencies": {
     "dotenv": "^17.3.1"

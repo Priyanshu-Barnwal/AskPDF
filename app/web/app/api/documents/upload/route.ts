@@ -1,6 +1,7 @@
 // app/web/app/api/documents/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { auth } from '@clerk/nextjs/server';
 import { db } from '../../../../packages/db/src/client.ts';
 import { documents } from '../../../../packages/db/src/schema.ts';
 import { randomUUID } from 'crypto';
@@ -14,11 +15,18 @@ const s3 = new S3Client({
 });
 
 export async function POST(req: NextRequest) {
+  // ── Auth guard ─────────────────────────────────────────────────────────────
+  // Read userId from Clerk's server-side session — never trust client input.
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // ── Parse form data ────────────────────────────────────────────────────────
   const formData = await req.formData();
   const file = formData.get('file') as File;
-  const userId = formData.get('userId') as string; // will come from Clerk later
 
-  if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
+  if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
   const fileBuffer = Buffer.from(await file.arrayBuffer());
   const s3Key = `uploads/${userId}/${randomUUID()}-${file.name}`;
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest) {
     ContentType: 'application/pdf',
   }));
 
-  // 2. Insert document record into Postgres
+  // 2. Insert document record into Postgres (userId from Clerk, not client)
   const [doc] = await db.insert(documents).values({
     userId,
     fileName: file.name,
