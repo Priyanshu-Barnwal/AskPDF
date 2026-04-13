@@ -1,6 +1,6 @@
 // components/Navbar.tsx
 // Fixed glassmorphism navbar — custom-vibe skill §4.2, adapted for AskPDF
-import { Button } from "@/components/ui/button";
+import { NavbarAuthSection } from "@/components/NavbarAuthSection";
 
 const links = [
   { label: "Home", href: "#" },
@@ -40,14 +40,8 @@ export function Navbar() {
           </div>
         </nav>
 
-        {/* CTA */}
-        <Button
-          variant="ghost"
-          className="gap-2 rounded-full border border-white/[0.12] bg-white/[0.04] text-sm text-white/80 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_24px_rgba(255,255,255,0.08)] transition-all duration-300"
-        >
-          <span className="h-3.5 w-3.5 rounded-full border border-white/40" />
-          Get Started Free
-        </Button>
+        {/* Auth section — signs in/out aware (client component) */}
+        <NavbarAuthSection />
       </div>
     </header>
   );
