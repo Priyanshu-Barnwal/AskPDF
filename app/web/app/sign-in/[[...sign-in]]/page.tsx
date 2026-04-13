@@ -1,11 +1,17 @@
 import { SignIn } from "@clerk/nextjs";
-import { GlowCanvas } from "@/components/GlowCanvas";
 
 export default function SignInPage() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#080808]">
-      {/* Ambient glow background — matches landing page */}
-      <GlowCanvas />
+      {/* Ambient glow blobs — same intensity as landing page */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Top-right sage green blob */}
+        <div className="absolute -top-40 -right-20 h-[700px] w-[900px] rounded-full bg-[radial-gradient(ellipse,#5a7c6066_0%,transparent_60%)] blur-3xl" />
+        {/* Bottom-left warm blob */}
+        <div className="absolute -bottom-20 -left-32 h-[500px] w-[600px] rounded-full bg-[radial-gradient(ellipse,#9ca88a33_0%,transparent_65%)] blur-3xl" />
+        {/* Centre glow — illuminates the card from behind */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[400px] w-[700px] rounded-full bg-[radial-gradient(ellipse,#5a7c6022_0%,transparent_70%)] blur-3xl" />
+      </div>
 
       {/* Subtle grid overlay for depth */}
       <div
@@ -36,7 +42,7 @@ export default function SignInPage() {
           routing="path"
           path="/sign-in"
           signUpUrl="/sign-up"
-          fallbackRedirectUrl="/dashboard"
+          forceRedirectUrl="/dashboard"
         />
       </div>
 

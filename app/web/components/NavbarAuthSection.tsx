@@ -6,8 +6,13 @@ import Link from "next/link";
 
 /**
  * NavbarAuthSection — Client Component
- * Renders either auth buttons (signed out) or UserButton (signed in).
- * Kept separate so Navbar.tsx stays a Server Component.
+ *
+ * - Signed out  →  "Sign In" (ghost) + "Get Started Free" (solid white)
+ * - Signed in   →  Clerk <UserButton> avatar
+ *
+ * Logo href is also auth-aware: /dashboard when signed in, / when signed out.
+ * This component is rendered inside Navbar (Server Component) as the only
+ * client boundary, keeping the rest of the Navbar tree server-side.
  */
 export function NavbarAuthSection() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -15,7 +20,12 @@ export function NavbarAuthSection() {
   // Render a skeleton pill while Clerk hydrates to avoid layout shift
   if (!isLoaded) {
     return (
-      <div className="h-9 w-32 animate-pulse rounded-full border border-white/[0.08] bg-white/[0.04]" />
+      <div className="flex items-center gap-3">
+        {/* Logo skeleton */}
+        <div className="h-9 w-9 animate-pulse rounded-full border border-white/[0.08] bg-white/[0.04]" />
+        {/* CTA skeleton */}
+        <div className="h-9 w-32 animate-pulse rounded-full border border-white/[0.08] bg-white/[0.04]" />
+      </div>
     );
   }
 
@@ -26,12 +36,6 @@ export function NavbarAuthSection() {
           elements: {
             avatarBox:
               "h-9 w-9 rounded-full border border-white/[0.2] ring-0 transition-all duration-300 hover:border-white/[0.35]",
-            userButtonPopoverCard:
-              "bg-[#0d0d0d] border border-white/[0.08] backdrop-blur-md rounded-2xl shadow-xl",
-            userButtonPopoverActionButton:
-              "text-white/70 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all duration-300",
-            userButtonPopoverActionButtonText: "font-medium",
-            userButtonPopoverFooter: "border-t border-white/[0.06]",
           },
         }}
       />
@@ -53,5 +57,26 @@ export function NavbarAuthSection() {
         Get Started Free
       </Link>
     </div>
+  );
+}
+
+/**
+ * NavbarLogo — Client Component
+ * Renders the AskPDF logo with an auth-aware href:
+ *   signed in  → /dashboard
+ *   signed out → /
+ */
+export function NavbarLogo() {
+  const { isSignedIn, isLoaded } = useAuth();
+
+  const href = isLoaded && isSignedIn ? "/dashboard" : "/";
+
+  return (
+    <Link href={href} className="flex items-center gap-2.5 group">
+      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 transition-all duration-300 group-hover:border-white/30 group-hover:bg-white/15">
+        <span className="text-base">📄</span>
+      </div>
+      <span className="text-sm font-semibold text-white/90 tracking-tight">AskPDF</span>
+    </Link>
   );
 }
