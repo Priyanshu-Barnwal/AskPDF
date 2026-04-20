@@ -58,4 +58,4 @@ The system is designed to prioritize correctness, debuggability, and scalability
 - Or cache retrieval results for every query? Let's see. 
 
 # Self Notes
-- 
+- User Logs in via Clerk -> Clerk sends a HTTP POST request to the webhook endpoint ->  

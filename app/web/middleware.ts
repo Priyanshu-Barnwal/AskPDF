@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/",                        // Landing page
   "/sign-in(.*)",             // Clerk sign-in (catch-all)
   "/sign-up(.*)",             // Clerk sign-up (catch-all)
+  "/api/webhooks/(.*)",       // Clerk webhooks — verified by svix signature, not session
   "/_next/(.*)",              // Next.js internals
   "/favicon.ico",
   "/public(.*)",              // Static public assets
