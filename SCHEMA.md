@@ -39,15 +39,19 @@ s3_key instead of presigned URL as buckets are private and can be changed or a C
 - document_id: uuid
 - chunk_text: text 
 - chunk_index: integer
+- page_label: string
 - embedding: vector (since pgvector is used)
 - created_at: timestamp
 - updated_at: timestamp
 
-# Chat 
-- id: uuid
-- document_id: uuid
-- user_id: uuid
-- query: text
-- response: text
-- created_at: timestamp
-- updated_at: timestamp
+Since we are using pgvectr, we will get ACID compliance on the vector data as well. This means we don't need to worry about the vector data being out of sync with the document data.  
+page_label is the page number or the label of the page (e.g. "Page 1", "Page 2", "Page 3", etc.). It will help in implementing citations later on (not implemented currently, will do later).  
+
+# RabbitMQ
+{
+    "document_id": "uuid",
+    "user_id": "uuid",
+    "s3_key": "string",
+    "created_at": "timestamp",
+    "retry_count": "integer"
+}
