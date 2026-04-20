@@ -56,3 +56,6 @@ The system is designed to prioritize correctness, debuggability, and scalability
 - What if document is completely irrelevant to the prompt? (do something similar to previous one)
 - Can cache embeddings for repeated queries? Will figure out caching later.
 - Or cache retrieval results for every query? Let's see. 
+
+# Self Notes
+- 
