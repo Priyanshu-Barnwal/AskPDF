@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '../../../../packages/db/src/client.ts';
-import { documents } from '../../../../packages/db/src/schema.ts';
+import { db, documents, users } from '@askpdf/db';
+import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 const s3 = new S3Client({
@@ -15,40 +15,60 @@ const s3 = new S3Client({
 });
 
 export async function POST(req: NextRequest) {
-  // ── Auth guard ─────────────────────────────────────────────────────────────
-  // Read userId from Clerk's server-side session — never trust client input.
-  const { userId } = await auth();
-  if (!userId) {
+  // ── Auth guard ────────────────────────────────────────────────────────────
+  // clerkId is the Clerk string ID (e.g. "user_2abc..."), NOT our internal uuid.
+  const { userId: clerkId } = await auth();
+  if (!clerkId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Parse form data ────────────────────────────────────────────────────────
+  // ── Resolve internal user uuid from clerkId ───────────────────────────────
+  // documents.user_id is a FK to users.id (uuid), not clerk_id.
+  // The users row is created by the Clerk webhook (user.created event).
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.clerkId, clerkId))
+    .limit(1);
+
+  if (!user) {
+    // Webhook hasn't fired yet (race condition on first login) or user was deleted.
+    return NextResponse.json(
+      { error: 'User record not found. Please try again in a moment.' },
+      { status: 404 }
+    );
+  }
+
+  // ── Parse form data ───────────────────────────────────────────────────────
   const formData = await req.formData();
   const file = formData.get('file') as File;
 
-  if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+  if (!file) {
+    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+  }
 
   const fileBuffer = Buffer.from(await file.arrayBuffer());
-  const s3Key = `uploads/${userId}/${randomUUID()}-${file.name}`;
+  const s3Key = `uploads/${clerkId}/${randomUUID()}-${file.name}`;
 
   // 1. Upload to S3
   await s3.send(new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,
     Key: s3Key,
     Body: fileBuffer,
-    ContentType: 'application/pdf',
+    ContentType: file.type || 'application/pdf',
   }));
 
-  // 2. Insert document record into Postgres (userId from Clerk, not client)
+  // 2. Insert document record using our internal uuid (not clerkId)
   const [doc] = await db.insert(documents).values({
-    userId,
+    userId:   user.id,       // ← internal uuid FK, not clerkId
     fileName: file.name,
-    s3Key,
     fileSize: file.size,
-    status: 'pending',
+    fileType: file.type || 'application/pdf',
+    s3Key,
+    status:   'pending',
   }).returning();
 
-  // 3. TODO (Step 5): push a message to RabbitMQ here
+  // 3. TODO: push a message to RabbitMQ here
 
   return NextResponse.json({ documentId: doc.id });
 }

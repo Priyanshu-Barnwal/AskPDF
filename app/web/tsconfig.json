@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@askpdf/db": ["../../packages/db/src/index.ts"]
     }
   },
   "include": [
