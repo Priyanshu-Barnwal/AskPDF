@@ -1,4 +1,17 @@
+# env files
 .env
-/packages/db/node_modules
-/data
+.env.local
+.env.*.local
+
+# node
 /node_modules
+/packages/db/node_modules
+
+# infrastructure data volumes
+/data
+
+# python
+app/workers/venv/
+app/workers/__pycache__/
+**/__pycache__/
+*.pyc

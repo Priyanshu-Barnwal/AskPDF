@@ -23,10 +23,10 @@
     "infra:up": "docker-compose up -d",
     "infra:down": "docker-compose down",
     "dev": "npm run dev --workspace=@askpdf/web",
-    "db:generate": "npm run db:generate --workspace=db",
-    "db:migrate": "npm run db:migrate --workspace=db",
-    "db:seed": "npm run db:seed --workspace=db",
-    "db:studio": "npm run db:studio --workspace=db"
+    "db:generate": "npm run db:generate --workspace=@askpdf/db",
+    "db:migrate": "npm run db:migrate --workspace=@askpdf/db",
+    "db:seed": "npm run db:seed --workspace=@askpdf/db",
+    "db:studio": "npm run db:studio --workspace=@askpdf/db"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
