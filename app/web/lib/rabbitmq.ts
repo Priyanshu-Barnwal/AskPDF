@@ -1,6 +1,6 @@
 import amqp from 'amqplib';
 
-let connection: amqp.Connection | null = null;
+let connection: amqp.ChannelModel | null = null;
 let channel: amqp.Channel | null = null;
 
 export const QUEUE_NAME = 'document_processing';
