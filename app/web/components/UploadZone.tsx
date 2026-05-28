@@ -63,6 +63,7 @@ export function UploadZone({ onUploadComplete }: { onUploadComplete?: () => void
         throw new Error(err.error || "Failed to get upload URL");
       }
 
+      const traceId = presignedRes.headers.get("X-Trace-Id");
       const { presignedUrl, s3Key } = await presignedRes.json();
 
       // Step 2: Upload directly to S3
@@ -91,7 +92,10 @@ export function UploadZone({ onUploadComplete }: { onUploadComplete?: () => void
 
       const docRes = await fetch("/api/documents", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(traceId ? { "X-Trace-Id": traceId } : {}),
+        },
         body: JSON.stringify({
           fileName: file.name,
           fileSize: file.size,

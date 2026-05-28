@@ -1,18 +1,11 @@
 // app/web/app/api/documents/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { auth } from '@clerk/nextjs/server';
 import { db, documents, users } from '@askpdf/db';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-
-const s3 = new S3Client({
-  region: process.env.AWS_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+import { getS3Client } from '@/lib/s3';
 
 export async function POST(req: NextRequest) {
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -51,7 +44,7 @@ export async function POST(req: NextRequest) {
   const s3Key = `uploads/${clerkId}/${randomUUID()}-${file.name}`;
 
   // 1. Upload to S3
-  await s3.send(new PutObjectCommand({
+  await getS3Client().send(new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,
     Key: s3Key,
     Body: fileBuffer,

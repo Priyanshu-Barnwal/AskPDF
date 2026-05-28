@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { db, users } from '@askpdf/db';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { requestLogger, timed, serializeError, ANON_USER } from '@/lib/logger';
 
 // ── Clerk webhook payload types (only the fields we use) ──────────────────────
 
@@ -23,7 +25,7 @@ interface ClerkEmailAddress {
 }
 
 interface ClerkUserPayload {
-  id: string;                           // Clerk's user ID (our clerk_id)
+  id: string;
   email_addresses: ClerkEmailAddress[];
   primary_email_address_id: string;
   first_name: string | null;
@@ -43,7 +45,7 @@ interface ClerkWebhookEvent {
 
 function getPrimaryEmail(payload: ClerkUserPayload): string {
   const primary = payload.email_addresses.find(
-    (e) => e.id === payload.primary_email_address_id
+    (e) => e.id === payload.primary_email_address_id,
   );
   return primary?.email_address ?? payload.email_addresses[0]?.email_address ?? '';
 }
@@ -53,22 +55,42 @@ function getFullName(payload: ClerkUserPayload): string | null {
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
+function withTraceId(res: NextResponse, traceId: string): NextResponse {
+  res.headers.set('X-Trace-Id', traceId);
+  return res;
+}
+
 // ── Webhook handler ───────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // 1. Verify the webhook signature using svix
+  const traceId = req.headers.get('x-trace-id') ?? randomUUID();
+  const log = requestLogger({
+    service: 'api-webhook-clerk',
+    traceId,
+    userId: ANON_USER,
+  });
+
+  log.info({ event: 'webhook.received' }, 'webhook.received');
+
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.error('CLERK_WEBHOOK_SECRET is not set');
-    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    log.error({ event: 'webhook.config.missing' }, 'webhook.config.missing');
+    return withTraceId(
+      NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 }),
+      traceId,
+    );
   }
 
-  const svixId        = req.headers.get('svix-id');
+  const svixId = req.headers.get('svix-id');
   const svixTimestamp = req.headers.get('svix-timestamp');
   const svixSignature = req.headers.get('svix-signature');
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    return NextResponse.json({ error: 'Missing svix headers' }, { status: 400 });
+    log.warn({ event: 'webhook.headers.missing' }, 'webhook.headers.missing');
+    return withTraceId(
+      NextResponse.json({ error: 'Missing svix headers' }, { status: 400 }),
+      traceId,
+    );
   }
 
   const rawBody = await req.text();
@@ -77,64 +99,110 @@ export async function POST(req: NextRequest) {
   try {
     const wh = new Webhook(webhookSecret);
     event = wh.verify(rawBody, {
-      'svix-id':        svixId,
+      'svix-id': svixId,
       'svix-timestamp': svixTimestamp,
       'svix-signature': svixSignature,
     }) as ClerkWebhookEvent;
-  } catch {
-    return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
+  } catch (err) {
+    log.warn(
+      { event: 'webhook.signature.invalid', err: serializeError(err) },
+      'webhook.signature.invalid',
+    );
+    return withTraceId(
+      NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 }),
+      traceId,
+    );
   }
 
-  // 2. Route to the appropriate handler
+  log.info({ event: 'webhook.verified', meta: { type: event.type } }, 'webhook.verified');
+
   try {
     switch (event.type) {
       case 'user.created': {
         const payload = event.data as ClerkUserPayload;
-        await db
-          .insert(users)
-          .values({
-            clerkId: payload.id,
-            email:   getPrimaryEmail(payload),
-            name:    getFullName(payload),
-          })
-          .onConflictDoNothing(); // guard against duplicate webhook deliveries
-        console.log(`[clerk-webhook] user.created → clerkId=${payload.id}`);
+        const eventLog = requestLogger({
+          service: 'api-webhook-clerk',
+          traceId,
+          userId: payload.id,
+        });
+        await timed(
+          eventLog,
+          'db.user.insert',
+          { clerkEvent: event.type },
+          () =>
+            db
+              .insert(users)
+              .values({
+                clerkId: payload.id,
+                email: getPrimaryEmail(payload),
+                name: getFullName(payload),
+              })
+              .onConflictDoNothing(),
+        );
         break;
       }
 
       case 'user.updated': {
         const payload = event.data as ClerkUserPayload;
-        await db
-          .update(users)
-          .set({
-            email:     getPrimaryEmail(payload),
-            name:      getFullName(payload),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.clerkId, payload.id));
-        console.log(`[clerk-webhook] user.updated → clerkId=${payload.id}`);
+        const eventLog = requestLogger({
+          service: 'api-webhook-clerk',
+          traceId,
+          userId: payload.id,
+        });
+        await timed(
+          eventLog,
+          'db.user.update',
+          { clerkEvent: event.type },
+          () =>
+            db
+              .update(users)
+              .set({
+                email: getPrimaryEmail(payload),
+                name: getFullName(payload),
+                updatedAt: new Date(),
+              })
+              .where(eq(users.clerkId, payload.id)),
+        );
         break;
       }
 
       case 'session.created': {
-        // Fires on every login — use it to track last_login_at
         const payload = event.data as ClerkSessionPayload;
-        await db
-          .update(users)
-          .set({ lastLoginAt: new Date() })
-          .where(eq(users.clerkId, payload.user_id));
-        console.log(`[clerk-webhook] session.created → clerkId=${payload.user_id}`);
+        const eventLog = requestLogger({
+          service: 'api-webhook-clerk',
+          traceId,
+          userId: payload.user_id,
+        });
+        await timed(
+          eventLog,
+          'db.user.last_login',
+          { clerkEvent: event.type },
+          () =>
+            db
+              .update(users)
+              .set({ lastLoginAt: new Date() })
+              .where(eq(users.clerkId, payload.user_id)),
+        );
         break;
       }
 
       default:
-        // Silently acknowledge unhandled event types so Clerk doesn't retry them
+        log.info(
+          { event: 'webhook.unhandled', meta: { type: event.type } },
+          'webhook.unhandled',
+        );
         break;
     }
   } catch (err) {
-    console.error('[clerk-webhook] DB error:', err);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    log.error(
+      { event: 'webhook.handler.error', err: serializeError(err), meta: { type: event.type } },
+      'webhook.handler.error',
+    );
+    return withTraceId(
+      NextResponse.json({ error: 'Database error' }, { status: 500 }),
+      traceId,
+    );
   }
 
-  return NextResponse.json({ received: true });
+  return withTraceId(NextResponse.json({ received: true }), traceId);
 }

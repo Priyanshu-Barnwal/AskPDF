@@ -135,9 +135,10 @@ No free-form strings.
 
 | Service Name | Process |
 |---|---|
-| `api-upload` | `POST /api/documents/upload` |
+| `api-upload` | `POST /api/upload/presigned`, `POST /api/documents` (register + queue) |
 | `api-chat` | `POST /api/chat` |
 | `api-documents` | `GET /api/documents` |
+| `api-webhook-clerk` | `POST /api/webhooks/clerk` |
 | `worker-doc` | Python document processing worker |
 | `worker-embed` | Python embedding worker |
 
@@ -252,7 +253,10 @@ without knowing individual message strings.
 |---|---|---|
 | `upload.start` | info | Handler entry — file received |
 | `upload.validation.failed` | warn | Invalid file type or size |
-| `s3.upload.start` | info | Before `PutObjectCommand` |
+| `s3.presign.start` | info | Before generating S3 presigned PUT URL (browser-direct upload flow) |
+| `s3.presign.complete` | info | Presigned URL generated; include `durationMs`, `s3Key` |
+| `s3.presign.error` | error | Presign failed; include `err` |
+| `s3.upload.start` | info | Before `PutObjectCommand` (server-side upload flow) |
 | `s3.upload.complete` | info | After successful S3 put; include `durationMs`, `s3Key` |
 | `s3.upload.error` | error | S3 put failed; include `err` |
 | `db.document.insert.start` | info | Before Drizzle insert |

@@ -1,104 +1,192 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { db, documents, users } from "@askpdf/db";
-import { eq, desc } from "drizzle-orm";
-import { publishDocumentJob } from "@/lib/rabbitmq";
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { db, documents, users } from '@askpdf/db';
+import { eq, desc } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { publishDocumentJob } from '@/lib/rabbitmq';
+import { requestLogger, timed, serializeError, ANON_USER } from '@/lib/logger';
 
-// ── GET /api/documents — list all documents for the current user ─────────────
+function withTraceId(res: NextResponse, traceId: string): NextResponse {
+  res.headers.set('X-Trace-Id', traceId);
+  return res;
+}
 
-export async function GET() {
+// ── GET /api/documents — list documents for the current user ─────────────────
+
+export async function GET(req: NextRequest) {
+  const traceId = req.headers.get('x-trace-id') ?? randomUUID();
+  const log = requestLogger({ service: 'api-documents', traceId, userId: ANON_USER });
+
+  log.info({ event: 'documents.list.start' }, 'documents.list.start');
+
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      log.warn({ event: 'documents.unauthorized' }, 'documents.unauthorized');
+      return withTraceId(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        traceId,
+      );
     }
 
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkId),
+    const authedLog = requestLogger({
+      service: 'api-documents',
+      traceId,
+      userId: clerkId,
     });
 
+    const userRecord = await timed(authedLog, 'db.user.lookup', {}, () =>
+      db.query.users.findFirst({ where: eq(users.clerkId, clerkId) }),
+    );
+
     if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      authedLog.warn({ event: 'documents.user.not_found' }, 'documents.user.not_found');
+      return withTraceId(
+        NextResponse.json({ error: 'User not found' }, { status: 404 }),
+        traceId,
+      );
     }
 
-    const userDocuments = await db
-      .select()
-      .from(documents)
-      .where(eq(documents.userId, userRecord.id))
-      .orderBy(desc(documents.createdAt));
+    const userDocuments = await timed(
+      authedLog,
+      'db.documents.fetch',
+      {},
+      () =>
+        db
+          .select()
+          .from(documents)
+          .where(eq(documents.userId, userRecord.id))
+          .orderBy(desc(documents.createdAt)),
+    );
 
-    return NextResponse.json({ documents: userDocuments });
-  } catch (error) {
-    console.error("Fetch documents error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
+    authedLog.info(
+      { event: 'documents.list.complete', meta: { count: userDocuments.length } },
+      'documents.list.complete',
+    );
+
+    return withTraceId(NextResponse.json({ documents: userDocuments }), traceId);
+  } catch (err) {
+    log.error(
+      { event: 'documents.list.error', err: serializeError(err) },
+      'documents.list.error',
+    );
+    return withTraceId(
+      NextResponse.json({ error: 'Internal Server Error' }, { status: 500 }),
+      traceId,
     );
   }
 }
 
-// ── POST /api/documents — create a document record + queue for processing ────
+// ── POST /api/documents — register doc + queue for processing ────────────────
 
 export async function POST(req: NextRequest) {
+  const traceId = req.headers.get('x-trace-id') ?? randomUUID();
+  const log = requestLogger({ service: 'api-upload', traceId, userId: ANON_USER });
+
+  log.info({ event: 'documents.register.start' }, 'documents.register.start');
+
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      log.warn({ event: 'documents.unauthorized' }, 'documents.unauthorized');
+      return withTraceId(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        traceId,
+      );
     }
 
-    // Get the internal UUID for the user
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkId),
+    const authedLog = requestLogger({
+      service: 'api-upload',
+      traceId,
+      userId: clerkId,
     });
 
+    const userRecord = await timed(authedLog, 'db.user.lookup', {}, () =>
+      db.query.users.findFirst({ where: eq(users.clerkId, clerkId) }),
+    );
+
     if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      authedLog.warn({ event: 'documents.user.not_found' }, 'documents.user.not_found');
+      return withTraceId(
+        NextResponse.json({ error: 'User not found' }, { status: 404 }),
+        traceId,
+      );
     }
 
     const { fileName, fileSize, fileType, s3Key } = await req.json();
 
     if (!fileName || !fileSize || !fileType || !s3Key) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
+      authedLog.warn(
+        { event: 'upload.validation.failed', meta: { fileType, hasS3Key: Boolean(s3Key) } },
+        'upload.validation.failed',
+      );
+      return withTraceId(
+        NextResponse.json({ error: 'Missing required fields' }, { status: 400 }),
+        traceId,
       );
     }
 
-    // 1. Create document record
-    const [document] = await db
-      .insert(documents)
-      .values({
-        userId: userRecord.id,
-        fileName,
-        fileSize,
-        fileType,
-        s3Key,
-        status: "uploaded",
-      })
-      .returning();
+    const [document] = await timed(
+      authedLog,
+      'db.document.insert',
+      { s3Key, fileSize },
+      () =>
+        db
+          .insert(documents)
+          .values({
+            userId: userRecord.id,
+            fileName,
+            fileSize,
+            fileType,
+            s3Key,
+            status: 'uploaded',
+            lastTraceId: traceId,
+          })
+          .returning(),
+    );
 
-    // 2. Publish to RabbitMQ
-    await publishDocumentJob({
-      document_id: document.id,
-      user_id: userRecord.id,
-      s3_key: s3Key,
-      created_at: new Date().toISOString(),
-      retry_count: 0,
-    });
+    await timed(
+      authedLog,
+      'mq.publish',
+      { queueName: 'document_processing', documentId: document.id },
+      () =>
+        publishDocumentJob(
+          {
+            document_id: document.id,
+            user_id: userRecord.id,
+            s3_key: s3Key,
+            created_at: new Date().toISOString(),
+            retry_count: 0,
+          },
+          { correlationId: traceId },
+        ),
+    );
 
-    // 3. Update status to queued
-    await db
-      .update(documents)
-      .set({ status: "queued" })
-      .where(eq(documents.id, document.id));
+    await timed(
+      authedLog,
+      'db.document.status.queued',
+      { documentId: document.id },
+      () =>
+        db
+          .update(documents)
+          .set({ status: 'queued' })
+          .where(eq(documents.id, document.id)),
+    );
 
-    return NextResponse.json({ document });
-  } catch (error) {
-    console.error("Document creation error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
+    authedLog.info(
+      { event: 'upload.complete', meta: { documentId: document.id } },
+      'upload.complete',
+    );
+
+    return withTraceId(NextResponse.json({ document }), traceId);
+  } catch (err) {
+    log.error(
+      { event: 'documents.register.error', err: serializeError(err) },
+      'documents.register.error',
+    );
+    return withTraceId(
+      NextResponse.json({ error: 'Internal Server Error' }, { status: 500 }),
+      traceId,
     );
   }
 }
-
